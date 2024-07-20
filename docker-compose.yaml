@@ -26,6 +26,12 @@ services:
     environment:
       MYSQL_DATABASE: DraftAssistant
       MYSQL_ROOT_PASSWORD: password
+    volumes:
+      - ./src/main/resources/db:/docker-entrypoint-initdb.d
+      - mysql-data:/var/lib/mysql
 
 networks:
   springapimysql-net:
+
+volumes:
+  mysql-data:
