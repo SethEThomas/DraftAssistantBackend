@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS `TIER` (
 
 CREATE TABLE IF NOT EXISTS `ADP` (
   `PlayerId` int NOT NULL,
+  `Sleeper` float DEFAULT NULL,
   `ESPN` float DEFAULT NULL,
   `Yahoo` float DEFAULT NULL,
   `FantasySports` float DEFAULT NULL,
