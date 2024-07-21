@@ -6,97 +6,122 @@ import lombok.Data;
 @Data
 public class SleeperStats {
     @JsonProperty("rush_yd")
-    private double rushYd;
+    private double rushYd = 0.0;
 
     @JsonProperty("rush_td")
-    private double rushTd;
+    private double rushTd = 0.0;
 
     @JsonProperty("rush_fd")
-    private double rushFd;
+    private double rushFd = 0.0;
 
     @JsonProperty("rush_att")
-    private double rushAtt;
+    private double rushAtt = 0.0;
 
     @JsonProperty("rush_2pt")
-    private double rush2pt;
+    private double rush2pt = 0.0;
 
     @JsonProperty("rec_yd")
-    private double recYd;
+    private double recYd = 0.0;
 
     @JsonProperty("rec_td")
-    private double recTd;
+    private double recTd = 0.0;
 
     @JsonProperty("rec_fd")
-    private double recFd;
+    private double recFd = 0.0;
 
     @JsonProperty("rec_5_9")
-    private double rec5_9;
+    private double rec5_9 = 0.0;
 
     @JsonProperty("rec_40p")
-    private double rec40p;
+    private double rec40p = 0.0;
 
     @JsonProperty("rec_30_39")
-    private double rec30_39;
+    private double rec30_39 = 0.0;
 
     @JsonProperty("rec_20_29")
-    private double rec20_29;
+    private double rec20_29 = 0.0;
 
     @JsonProperty("rec_10_19")
-    private double rec10_19;
+    private double rec10_19 = 0.0;
 
     @JsonProperty("rec_0_4")
-    private double rec0_4;
+    private double rec0_4 = 0.0;
 
-    private double rec;
+    @JsonProperty("rec")
+    private double rec = 0.0;
 
     @JsonProperty("pts_std")
-    private double ptsStd;
+    private double ptsStd = 0.0;
 
     @JsonProperty("pts_ppr")
-    private double ptsPpr;
+    private double ptsPpr = 0.0;
 
     @JsonProperty("pts_half_ppr")
-    private double ptsHalfPpr;
+    private double ptsHalfPpr = 0.0;
 
-    private double gp;
+    @JsonProperty("gp")
+    private double gp = 0.0;
 
     @JsonProperty("fum_lost")
-    private double fumLost;
+    private double fumLost = 0.0;
 
     @JsonProperty("bonus_rec_rb")
-    private double bonusRecRb;
+    private double bonusRecRb = 0.0;
 
     @JsonProperty("adp_std")
-    private double adpStd;
+    private double adpStd = 0.0;
 
     @JsonProperty("adp_rookie")
-    private double adpRookie;
+    private double adpRookie = 0.0;
 
     @JsonProperty("adp_ppr")
-    private double adpPpr;
+    private double adpPpr = 0.0;
 
     @JsonProperty("adp_idp")
-    private double adpIdp;
+    private double adpIdp = 0.0;
 
     @JsonProperty("adp_half_ppr")
-    private double adpHalfPpr;
+    private double adpHalfPpr = 0.0;
 
     @JsonProperty("adp_dynasty_std")
-    private double adpDynastyStd;
+    private double adpDynastyStd = 0.0;
 
     @JsonProperty("adp_dynasty_ppr")
-    private double adpDynastyPpr;
+    private double adpDynastyPpr = 0.0;
 
     @JsonProperty("adp_dynasty_half_ppr")
-    private double adpDynastyHalfPpr;
+    private double adpDynastyHalfPpr = 0.0;
 
     @JsonProperty("adp_dynasty_2qb")
-    private double adpDynasty2qb;
+    private double adpDynasty2qb = 0.0;
 
     @JsonProperty("adp_dynasty")
-    private double adpDynasty;
+    private double adpDynasty = 0.0;
 
     @JsonProperty("adp_2qb")
-    private double adp2qb;
-}
+    private double adp2qb = 0.0;
 
+    @JsonProperty("pass_yd")
+    private double passYd = 0.0;
+
+    @JsonProperty("pass_td")
+    private double passTd = 0.0;
+
+    @JsonProperty("pass_int")
+    private double passInt = 0.0;
+
+    @JsonProperty("pass_fd")
+    private double passFd = 0.0;
+
+    @JsonProperty("pass_cmp")
+    private double passCmp = 0.0;
+
+    @JsonProperty("pass_att")
+    private double passAtt = 0.0;
+
+    @JsonProperty("pass_2pt")
+    private double pass2pt = 0.0;
+
+    @JsonProperty("cmp_pct")
+    private double cmpPct = 0.0;
+}
