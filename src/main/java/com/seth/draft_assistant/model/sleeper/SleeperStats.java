@@ -1,7 +1,13 @@
 package com.seth.draft_assistant.model.sleeper;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.seth.draft_assistant.model.enums.AdpType;
+import com.seth.draft_assistant.model.enums.DataSource;
+import com.seth.draft_assistant.model.internal.InternalAdp;
 import lombok.Data;
+
+import java.util.List;
+import java.util.ArrayList;
 
 @Data
 public class SleeperStats {
@@ -124,4 +130,17 @@ public class SleeperStats {
 
     @JsonProperty("cmp_pct")
     private double cmpPct = 0.0;
+
+    public List<InternalAdp> getAdp(){
+        List<InternalAdp> adps = new ArrayList<>();
+        adps.add(new InternalAdp(DataSource.SLEEPER, AdpType.STANDARD, adpStd));
+        adps.add(new InternalAdp(DataSource.SLEEPER, AdpType.HALF_PPR, adpHalfPpr));
+        adps.add(new InternalAdp(DataSource.SLEEPER, AdpType.PPR, adpPpr));
+        adps.add(new InternalAdp(DataSource.SLEEPER, AdpType.TWO_QB, adp2qb));
+        adps.add(new InternalAdp(DataSource.SLEEPER, AdpType.DYNASTY_STANDARD, adpDynastyStd));
+        adps.add(new InternalAdp(DataSource.SLEEPER, AdpType.DYNASTY_HALF_PPR, adpDynastyHalfPpr));
+        adps.add(new InternalAdp(DataSource.SLEEPER, AdpType.DYNASTY_PPR, adpDynastyPpr));
+        adps.add(new InternalAdp(DataSource.SLEEPER, AdpType.DYNASTY_2_QB, adpDynasty2qb));
+        return adps;
+    }
 }

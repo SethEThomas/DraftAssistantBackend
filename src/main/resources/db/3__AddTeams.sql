@@ -30,3 +30,4 @@ INSERT IGNORE INTO `DraftAssistant`.`TEAM`(`ID`,`Name`,`Abbreviation`,`ByeWeek`)
 INSERT IGNORE INTO `DraftAssistant`.`TEAM`(`ID`,`Name`,`Abbreviation`,`ByeWeek`) VALUES(30, "Tampa Bay Buccaneers", "TB", 11);
 INSERT IGNORE INTO `DraftAssistant`.`TEAM`(`ID`,`Name`,`Abbreviation`,`ByeWeek`) VALUES(31, "Tennessee Titans", "TEN", 5);
 INSERT IGNORE INTO `DraftAssistant`.`TEAM`(`ID`,`Name`,`Abbreviation`,`ByeWeek`) VALUES(32, "Washington Commanders", "WAS", 14);
+INSERT IGNORE INTO `DraftAssistant`.`TEAM`(`ID`,`Name`,`Abbreviation`,`ByeWeek`) VALUES(33, "Undrafted Free Agent", "UDFA", -1);
