@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 @RestController
@@ -22,9 +24,10 @@ public class PlayerDataController {
 
     @PostMapping("/load-player-data")
     public ResponseEntity<String> loadPlayerData(@RequestParam DataSource[] sources) {
-        CompletableFuture<String> fetchResult = playerDataService.fetchDataFromSources(sources);
-
-        // Immediately return response
-        return ResponseEntity.status(202).body("Fetching player data from " + fetchResult.join());
+        playerDataService.fetchDataFromSources(sources);
+        String sourcesMessage = Stream.of(sources)
+                .map(DataSource::name)
+                .collect(Collectors.joining(", "));
+        return ResponseEntity.status(201).body("Fetching player data from " + sourcesMessage);
     }
 }

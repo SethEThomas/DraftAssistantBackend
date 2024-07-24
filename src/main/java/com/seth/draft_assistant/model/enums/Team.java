@@ -1,5 +1,8 @@
 package com.seth.draft_assistant.model.enums;
 
+import lombok.Getter;
+
+@Getter
 public enum Team {
     ARIZONA_CARDINALS(1, "ARI"),
     ATLANTA_FALCONS(2, "ATL"),
@@ -33,7 +36,7 @@ public enum Team {
     TAMPA_BAY_BUCCANEERS(30, "TB"),
     TENNESSEE_TITANS(31, "TEN"),
     WASHINGTON_COMMANDERS(32, "WAS"),
-    UNDRAFTED_FREE_AGENT(33, "UDFA");
+    FREE_AGENT(33, "UDFA");
 
     private final int id;
     private final String abbreviation;
@@ -43,21 +46,13 @@ public enum Team {
         this.abbreviation = abbreviation;
     }
 
-    public int getId() {
-        return id;
-    }
-
-    public String getAbbreviation() {
-        return abbreviation;
-    }
-
     public static Team fromId(int id) {
         for (Team team : Team.values()) {
             if (team.id == id) {
                 return team;
             }
         }
-        return UNDRAFTED_FREE_AGENT;
+        return FREE_AGENT;
     }
 
     public static Team fromAbbreviation(String abbreviation) {
@@ -66,7 +61,7 @@ public enum Team {
                 return team;
             }
         }
-        return UNDRAFTED_FREE_AGENT;
+        return FREE_AGENT;
     }
 }
 

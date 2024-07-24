@@ -1,9 +1,12 @@
 package com.seth.draft_assistant.repository;
 
+import com.seth.draft_assistant.model.enums.AdpType;
 import com.seth.draft_assistant.model.enums.DataSource;
 import com.seth.draft_assistant.model.enums.Position;
 import com.seth.draft_assistant.model.enums.Team;
+import com.seth.draft_assistant.model.espn.EspnPlayer;
 import com.seth.draft_assistant.model.internal.InternalAdp;
+import com.seth.draft_assistant.model.internal.ProjectedStat;
 import com.seth.draft_assistant.model.sleeper.SleeperProjection;
 import com.seth.draft_assistant.model.sleeper.SleeperStats;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +17,10 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
+
+import static com.seth.draft_assistant.helpers.StatsHelper.generateSleeperProjectedStats;
 
 @Repository
 public class PlayerDataRepository {
@@ -22,28 +28,54 @@ public class PlayerDataRepository {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    public void savePlayerData(List<SleeperProjection> playerData) {
+    public void saveSleeperPlayerData(List<SleeperProjection> playerData) {
         for (SleeperProjection player : playerData) {
             Long playerId = insertPlayer(player);
+            boolean isTe = getPositionId(player.getPlayer().getPosition()) == Position.fromName("TE").getId();
             if(playerId != null){
-                insertAdp(playerId, player.getStats().getAdp());
-                insertProjectedStats(playerId, player.getStats());
+                upsertAdp(playerId, player.getStats().getAdp());
+                upsertProjectedStats(playerId, player.getStats(), isTe);
             }
         }
     }
 
+    public void saveEspnPlayerData(List<EspnPlayer> playerData) {
+        for (EspnPlayer player : playerData) {
+            Long playerId = getPlayerByName(player.getFirstName(), player.getLastName());
+            if(playerId != null){
+                List<InternalAdp> adps = new ArrayList<>();
+                adps.add(new InternalAdp(DataSource.ESPN, AdpType.STANDARD, player.getStandardAdp()));
+                adps.add(new InternalAdp(DataSource.ESPN, AdpType.PPR, player.getPprAdp()));
+                upsertAdp(playerId, adps);
+            }
+        }
+    }
+
+    private Long getPlayerByName(String firstName, String lastName) {
+        String sql = "SELECT ID FROM PLAYER WHERE NormalizedName = ?";
+        try {
+            return jdbcTemplate.queryForObject(sql, new Object[]{normalizeName(firstName, lastName)}, Long.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private Long insertPlayer(SleeperProjection playerData) {
-        String sql = "INSERT INTO PLAYER(Position, FirstName, LastName, Team) VALUES (?, ?, ?, ?)";
         String firstName = playerData.getPlayer().getFirstName();
         String lastName = playerData.getPlayer().getLastName();
+        Long playerId = getPlayerByName(firstName, lastName);
+        if(playerId != null) return playerId;
+        String sql = "INSERT INTO PLAYER(NormalizedName, Position, FirstName, LastName, Team) VALUES (?, ?, ?, ?, ?)";
+        int positionId = getPositionId(playerData.getPlayer().getPosition());
         KeyHolder keyHolder = new GeneratedKeyHolder();
         try {
             jdbcTemplate.update(connection -> {
                 PreparedStatement ps = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
-                ps.setInt(1, getPositionId(playerData.getPlayer().getPosition()));
-                ps.setString(2, firstName);
-                ps.setString(3, lastName);
-                ps.setInt(4, getTeamId(playerData.getTeam()));
+                ps.setString(1, normalizeName(firstName, lastName));
+                ps.setInt(2, positionId);
+                ps.setString(3, firstName);
+                ps.setString(4, lastName);
+                ps.setInt(5, getTeamId(playerData.getTeam()));
                 return ps;
             }, keyHolder);
 
@@ -56,26 +88,44 @@ public class PlayerDataRepository {
         }
     }
 
-    private void insertAdp(long playerId, List<InternalAdp> adps){
-        for(InternalAdp adp: adps){
-            String sql = String.format("INSERT INTO ADP(`PlayerId`,`ADPType`,`%s`) VALUES(?,?,?)",getAdpColumnName(adp.getDataSource()));
+    private void upsertAdp(long playerId, List<InternalAdp> adps) {
+        for (InternalAdp adp : adps) {
+            String columnName = getSourceTypeColumnName(adp.getDataSource());
+            String sql = String.format(
+                    "INSERT INTO ADP(`PlayerId`, `ADPType`, `%s`) VALUES (?, ?, ?) " +
+                            "ON DUPLICATE KEY UPDATE `%s` = VALUES(`%s`)",
+                    columnName, columnName, columnName);
             try {
                 jdbcTemplate.update(sql,
                         playerId,
                         adp.getAdpType().getId(),
                         adp.getAdp());
             } catch (Exception e) {
-                System.out.println(String.format("Unable to insert player data for player %d", playerId));
+                System.out.println(String.format("Unable to insert/update player data for player %d", playerId));
                 e.printStackTrace();
             }
         }
     }
 
-    private void insertProjectedStats(long playerId, SleeperStats stats){
-
+    private void upsertProjectedStats(long playerId, SleeperStats stats, boolean isTe){
+        List<ProjectedStat> projectedStats = generateSleeperProjectedStats(playerId, stats, isTe);
+        for(ProjectedStat stat: projectedStats){
+            String sql =
+                    "INSERT INTO PROJECTED_STATS(`PlayerId`, `ScoreType`, `ProjectedAmount`) VALUES (?, ?, ?) " +
+                            "ON DUPLICATE KEY UPDATE `ProjectedAmount` = VALUES(`ProjectedAmount`)";
+            try {
+                jdbcTemplate.update(sql,
+                        playerId,
+                        stat.getScoreType().getId(),
+                        stat.getProjection());
+            } catch (Exception e) {
+                System.out.println(String.format("Unable to insert/update player data for player %d", playerId));
+                e.printStackTrace();
+            }
+        }
     }
 
-    private String getAdpColumnName(DataSource dataSource){
+    private String getSourceTypeColumnName(DataSource dataSource){
         switch(dataSource){
             case SLEEPER:
                 return "Sleeper";
@@ -96,5 +146,10 @@ public class PlayerDataRepository {
 
     private int getTeamId(String teamAbbreviation) {
         return Team.fromAbbreviation(teamAbbreviation).getId();
+    }
+
+    private String normalizeName(String firstName, String lastName){
+        return firstName.toLowerCase().replaceAll("[^a-z]", "") +
+                lastName.toLowerCase().replaceAll("[^a-z]", "");
     }
 }

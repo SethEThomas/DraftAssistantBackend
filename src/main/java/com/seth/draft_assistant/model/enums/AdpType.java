@@ -1,5 +1,8 @@
 package com.seth.draft_assistant.model.enums;
 
+import lombok.Getter;
+
+@Getter
 public enum AdpType {
     STANDARD(1, "Standard"),
     HALF_PPR(2, "Half PPR"),
@@ -17,14 +20,6 @@ public enum AdpType {
     AdpType(int id, String name) {
         this.id = id;
         this.name = name;
-    }
-
-    public int getId() {
-        return id;
-    }
-
-    public String getName() {
-        return name;
     }
 
     public static AdpType fromId(int id) {

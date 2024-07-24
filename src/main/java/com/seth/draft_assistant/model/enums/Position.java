@@ -1,5 +1,8 @@
 package com.seth.draft_assistant.model.enums;
 
+import lombok.Getter;
+
+@Getter
 public enum Position {
     OVERALL(1, "OVERALL"),
     QB(2, "QB"),
@@ -14,14 +17,6 @@ public enum Position {
     Position(int id, String name) {
         this.id = id;
         this.name = name;
-    }
-
-    public int getId() {
-        return id;
-    }
-
-    public String getName() {
-        return name;
     }
 
     public static Position fromId(int id) {
