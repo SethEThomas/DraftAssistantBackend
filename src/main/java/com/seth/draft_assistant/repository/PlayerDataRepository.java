@@ -19,6 +19,7 @@ import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static com.seth.draft_assistant.helpers.StatsHelper.generateSleeperProjectedStats;
 
@@ -30,23 +31,47 @@ public class PlayerDataRepository {
 
     public void saveSleeperPlayerData(List<SleeperProjection> playerData) {
         for (SleeperProjection player : playerData) {
-            Long playerId = insertPlayer(player);
+            Long playerId = insertSleeperPlayer(player);
             boolean isTe = getPositionId(player.getPlayer().getPosition()) == Position.fromName("TE").getId();
-            if(playerId != null){
+            if (playerId != null) {
                 upsertAdp(playerId, player.getStats().getAdp());
                 upsertProjectedStats(playerId, player.getStats(), isTe);
             }
         }
     }
 
-    public void saveEspnPlayerData(List<EspnPlayer> playerData) {
+    public void saveEspnPlayerDataWithRetry(List<EspnPlayer> playerData, int maxRetries) {
         for (EspnPlayer player : playerData) {
-            Long playerId = getPlayerByName(player.getFirstName(), player.getLastName());
-            if(playerId != null){
-                List<InternalAdp> adps = new ArrayList<>();
-                adps.add(new InternalAdp(DataSource.ESPN, AdpType.STANDARD, player.getStandardAdp()));
-                adps.add(new InternalAdp(DataSource.ESPN, AdpType.PPR, player.getPprAdp()));
-                upsertAdp(playerId, adps);
+            retryInsertEspnPlayerData(player, maxRetries);
+        }
+    }
+
+    private void retryInsertEspnPlayerData(EspnPlayer player, int retries) {
+        while (retries > 0) {
+            try {
+                Long playerId = getPlayerByName(player.getFirstName(), player.getLastName());
+                if (playerId != null) {
+                    List<InternalAdp> adps = new ArrayList<>();
+                    adps.add(new InternalAdp(DataSource.ESPN, AdpType.STANDARD, player.getStandardAdp()));
+                    adps.add(new InternalAdp(DataSource.ESPN, AdpType.PPR, player.getPprAdp()));
+                    upsertAdp(playerId, adps);
+                    return;
+                } else {
+                    System.out.printf("Player ID not found for ESPN player: %s %s\n", player.getFirstName(), player.getLastName());
+                }
+            } catch (Exception e) {
+                System.out.printf("Error during ESPN player data insertion for: %s %s\n", player.getFirstName(), player.getLastName());
+                e.printStackTrace();
+            }
+
+            retries--;
+            try {
+                long backoffTime = (long) Math.pow(2, 3 - retries); // Exponential backoff
+                TimeUnit.SECONDS.sleep(backoffTime);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                System.out.println("Retry interrupted");
+                ie.printStackTrace();
             }
         }
     }
@@ -60,11 +85,11 @@ public class PlayerDataRepository {
         }
     }
 
-    private Long insertPlayer(SleeperProjection playerData) {
+    private Long insertSleeperPlayer(SleeperProjection playerData) {
         String firstName = playerData.getPlayer().getFirstName();
         String lastName = playerData.getPlayer().getLastName();
         Long playerId = getPlayerByName(firstName, lastName);
-        if(playerId != null) return playerId;
+        if (playerId != null) return playerId;
         String sql = "INSERT INTO PLAYER(NormalizedName, Position, FirstName, LastName, Team) VALUES (?, ?, ?, ?, ?)";
         int positionId = getPositionId(playerData.getPlayer().getPosition());
         KeyHolder keyHolder = new GeneratedKeyHolder();
