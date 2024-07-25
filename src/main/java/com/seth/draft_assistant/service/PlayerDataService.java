@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seth.draft_assistant.model.enums.DataSource;
 import com.seth.draft_assistant.model.espn.EspnPlayer;
+import com.seth.draft_assistant.model.internal.Player;
 import com.seth.draft_assistant.model.rotowire.RotowirePlayer;
 import com.seth.draft_assistant.model.sleeper.SleeperProjection;
 import com.seth.draft_assistant.repository.PlayerDataRepository;
@@ -197,5 +198,9 @@ public class PlayerDataService {
             ex.printStackTrace();
             return null;
         });
+    }
+
+    public List<Player> getAllPlayers(){
+        return playerDataRepository.getAllPlayers();
     }
 }

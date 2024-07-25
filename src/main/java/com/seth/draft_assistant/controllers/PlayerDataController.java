@@ -1,15 +1,14 @@
 package com.seth.draft_assistant.controllers;
 
 import com.seth.draft_assistant.model.enums.DataSource;
+import com.seth.draft_assistant.model.internal.Player;
 import com.seth.draft_assistant.model.sleeper.SleeperProjection;
 import com.seth.draft_assistant.service.PlayerDataService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -29,5 +28,10 @@ public class PlayerDataController {
                 .map(DataSource::name)
                 .collect(Collectors.joining(", "));
         return ResponseEntity.status(201).body("Fetching player data from " + sourcesMessage);
+    }
+
+    @GetMapping("/players")
+    public ResponseEntity<List<Player>> getPlayers() {
+        return ResponseEntity.status(200).body(playerDataService.getAllPlayers());
     }
 }

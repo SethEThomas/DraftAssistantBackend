@@ -6,6 +6,7 @@ import com.seth.draft_assistant.model.enums.Position;
 import com.seth.draft_assistant.model.enums.Team;
 import com.seth.draft_assistant.model.espn.EspnPlayer;
 import com.seth.draft_assistant.model.internal.InternalAdp;
+import com.seth.draft_assistant.model.internal.Player;
 import com.seth.draft_assistant.model.internal.ProjectedStat;
 import com.seth.draft_assistant.model.rotowire.RotowirePlayer;
 import com.seth.draft_assistant.model.sleeper.SleeperProjection;
@@ -29,6 +30,22 @@ public class PlayerDataRepository {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    private static final String ALL_PLAYERS_BASE_QUERY = "WITH PlayerData AS (" +
+            "SELECT pl.id, pl.NormalizedName, pl.FirstName, pl.LastName, pl.Age, pl.PositionalDepth, " +
+            "pl.Notes, pl.IsSleeper, pl.ECR, po.Name AS Position, te.Name AS TeamName, te.ByeWeek AS ByeWeek, " +
+            "sos.StrengthOfSchedule " +
+            "FROM PLAYER pl " +
+            "JOIN POSITION po ON pl.Position = po.id " +
+            "JOIN TEAM te ON pl.Team = te.id " +
+            "JOIN STRENGTH_OF_SCHEDULE sos ON sos.Team = te.id AND sos.Position = po.id), " +
+            "ADPData AS ( " +
+            "SELECT a.PlayerId, at.Name AS AdpTypeName, a.Sleeper, a.ESPN, a.FANTRAX, a.NFFC, a.UNDERDOG " +
+            "FROM ADP a " +
+            "JOIN ADP_TYPE at ON a.AdpType = at.id) " +
+            "SELECT pd.*, ";
+    private static final String ALL_PLAYERS_GROUP_BY = "GROUP BY pd.id, pd.NormalizedName, pd.FirstName, pd.LastName, pd.Age, pd.PositionalDepth, pd.Notes, " +
+            "pd.IsSleeper, pd.ECR, pd.Position, pd.TeamName, pd.ByeWeek, pd.StrengthOfSchedule";
 
     public void saveSleeperPlayerData(List<SleeperProjection> playerData) {
         System.out.printf("Saving %s rows of Sleeper data\n", playerData.size());
@@ -226,6 +243,52 @@ public class PlayerDataRepository {
             default -> "N/A";
         };
     }
+
+    public List<Player> getAllPlayers(){
+        String sql = buildAllPlayerDataDynamicQuery();
+        System.out.println(sql);
+        return new ArrayList<>();
+    }
+
+    private List<String> getAdpTypes() {
+        String sql = "SELECT Name FROM ADP_TYPE";
+        return jdbcTemplate.queryForList(sql, String.class);
+    }
+
+    private List<String> getScoreTypes() {
+        String sql = "SELECT Name FROM SCORE_TYPE";
+        return jdbcTemplate.queryForList(sql, String.class);
+    }
+
+    private String buildAllPlayerDataDynamicQuery() {
+        List<String> adpTypes = getAdpTypes();
+        List<String> scoreTypes = getScoreTypes();
+        StringBuilder dynamicQuery = new StringBuilder(ALL_PLAYERS_BASE_QUERY);
+        for (String adpType : adpTypes) {
+            String quotedAdpType = adpType.replace(" ", "_");
+            dynamicQuery.append("MAX(CASE WHEN ad.AdpTypeName = '").append(adpType).append("' THEN ad.Sleeper ELSE NULL END) AS \"Sleeper_").append(quotedAdpType).append("\", ");
+            dynamicQuery.append("MAX(CASE WHEN ad.AdpTypeName = '").append(adpType).append("' THEN ad.ESPN ELSE NULL END) AS \"ESPN_").append(quotedAdpType).append("\", ");
+            dynamicQuery.append("MAX(CASE WHEN ad.AdpTypeName = '").append(adpType).append("' THEN ad.FANTRAX ELSE NULL END) AS \"FANTRAX_").append(quotedAdpType).append("\", ");
+            dynamicQuery.append("MAX(CASE WHEN ad.AdpTypeName = '").append(adpType).append("' THEN ad.NFFC ELSE NULL END) AS \"NFFC_").append(quotedAdpType).append("\", ");
+            dynamicQuery.append("MAX(CASE WHEN ad.AdpTypeName = '").append(adpType).append("' THEN ad.UNDERDOG ELSE NULL END) AS \"UNDERDOG_").append(quotedAdpType).append("\", ");
+        }
+        for (String scoreType : scoreTypes) {
+            String quotedScoreType = scoreType.replace(" ", "_");
+            dynamicQuery.append("MAX(CASE WHEN st.Name = '").append(scoreType).append("' THEN ps.ProjectedAmount ELSE NULL END) AS \"").append(quotedScoreType).append("_PROJECTED_AMOUNT\", ");
+            dynamicQuery.append("MAX(CASE WHEN st.Name = '").append(scoreType).append("' THEN ps.ProjectedAmount * st.PointValue ELSE NULL END) AS \"").append(quotedScoreType).append("_PROJECTED_POINTS\", ");
+        }
+        dynamicQuery.setLength(dynamicQuery.length() - 2);
+        dynamicQuery.append(" FROM PlayerData pd ")
+                .append("LEFT JOIN ADPData ad ON pd.id = ad.PlayerId ")
+                .append("LEFT JOIN PROJECTED_STATS ps ON pd.id = ps.PlayerId ")
+                .append("LEFT JOIN SCORE_TYPE st ON ps.ScoreType = st.id ")
+                .append("GROUP BY pd.id, pd.NormalizedName, pd.FirstName, pd.LastName, pd.Age, pd.PositionalDepth, pd.Notes, ")
+                .append("pd.IsSleeper, pd.ECR, pd.Position, pd.TeamName, pd.ByeWeek, pd.StrengthOfSchedule ")
+                .append("ORDER BY Sleeper_PPR;"); // Adjust ORDER BY as needed
+
+        return dynamicQuery.toString();
+    }
+
 
     private int getPositionId(String positionName) {
         return Position.fromName(positionName).getId();
