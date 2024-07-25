@@ -46,9 +46,9 @@ CREATE TABLE IF NOT EXISTS `ADP` (
   `PlayerId` int NOT NULL,
   `Sleeper` float DEFAULT NULL,
   `ESPN` float DEFAULT NULL,
-  `Yahoo` float DEFAULT NULL,
-  `FantasySports` float DEFAULT NULL,
-  `Average` float DEFAULT NULL,
+  `FANTRAX` float DEFAULT NULL,
+  `NFFC` float DEFAULT NULL,
+  `UNDERDOG` float DEFAULT NULL,
   PRIMARY KEY (`PlayerId`),
   CONSTRAINT `ADP_Player_ID` FOREIGN KEY (`PlayerId`) REFERENCES `PLAYER` (`ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

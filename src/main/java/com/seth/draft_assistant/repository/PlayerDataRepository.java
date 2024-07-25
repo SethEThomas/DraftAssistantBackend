@@ -7,6 +7,7 @@ import com.seth.draft_assistant.model.enums.Team;
 import com.seth.draft_assistant.model.espn.EspnPlayer;
 import com.seth.draft_assistant.model.internal.InternalAdp;
 import com.seth.draft_assistant.model.internal.ProjectedStat;
+import com.seth.draft_assistant.model.rotowire.RotowirePlayer;
 import com.seth.draft_assistant.model.sleeper.SleeperProjection;
 import com.seth.draft_assistant.model.sleeper.SleeperStats;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +31,7 @@ public class PlayerDataRepository {
     private JdbcTemplate jdbcTemplate;
 
     public void saveSleeperPlayerData(List<SleeperProjection> playerData) {
+        System.out.printf("Saving %s rows of Sleeper data\n", playerData.size());
         for (SleeperProjection player : playerData) {
             Long playerId = insertSleeperPlayer(player);
             boolean isTe = getPositionId(player.getPlayer().getPosition()) == Position.fromName("TE").getId();
@@ -38,32 +40,95 @@ public class PlayerDataRepository {
                 upsertProjectedStats(playerId, player.getStats(), isTe);
             }
         }
+        System.out.println("Finished saving sleeper data");
     }
 
     public void saveEspnPlayerDataWithRetry(List<EspnPlayer> playerData, int maxRetries) {
+        System.out.printf("Saving %s rows of espn data\n", playerData.size());
         for (EspnPlayer player : playerData) {
             retryInsertEspnPlayerData(player, maxRetries);
         }
+        System.out.println("Finished saving ESPN data");
+    }
+
+    public void saveRotowireDataWithRetry(List<RotowirePlayer> playerData, int maxRetries){
+        System.out.printf("Saving %s rows of rotowire data\n", playerData.size());
+        for (RotowirePlayer player : playerData) {
+            retryInsertRotowirePlayerData(player, maxRetries);
+        }
+        System.out.println("Finished saving rotowire data");
     }
 
     private void retryInsertEspnPlayerData(EspnPlayer player, int retries) {
+        if(retries == 0){
+            doInsertEspnPlayerData(player);
+            return;
+        }
         while (retries > 0) {
+            if(doInsertEspnPlayerData(player)) return;
+            retries--;
             try {
-                Long playerId = getPlayerByName(player.getFirstName(), player.getLastName());
-                if (playerId != null) {
-                    List<InternalAdp> adps = new ArrayList<>();
-                    adps.add(new InternalAdp(DataSource.ESPN, AdpType.STANDARD, player.getStandardAdp()));
-                    adps.add(new InternalAdp(DataSource.ESPN, AdpType.PPR, player.getPprAdp()));
-                    upsertAdp(playerId, adps);
-                    return;
-                } else {
-                    System.out.printf("Player ID not found for ESPN player: %s %s\n", player.getFirstName(), player.getLastName());
-                }
-            } catch (Exception e) {
-                System.out.printf("Error during ESPN player data insertion for: %s %s\n", player.getFirstName(), player.getLastName());
-                e.printStackTrace();
+                long backoffTime = (long) Math.pow(2, 3 - retries); // Exponential backoff
+                TimeUnit.SECONDS.sleep(backoffTime);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                System.out.println("Retry interrupted");
+                ie.printStackTrace();
             }
+        }
+    }
 
+    private boolean doInsertEspnPlayerData(EspnPlayer player){
+        try {
+            Long playerId = getPlayerByName(player.getFirstName(), player.getLastName());
+            if (playerId != null) {
+                List<InternalAdp> adps = new ArrayList<>();
+                adps.add(new InternalAdp(DataSource.ESPN, AdpType.STANDARD, player.getStandardAdp()));
+                adps.add(new InternalAdp(DataSource.ESPN, AdpType.PPR, player.getPprAdp()));
+                upsertAdp(playerId, adps);
+                return true;
+            } else {
+                System.out.printf("Player ID not found for ESPN player: %s %s\n", player.getFirstName(), player.getLastName());
+                return false;
+            }
+        } catch (Exception e) {
+            System.out.printf("Error during ESPN player data insertion for: %s %s\n", player.getFirstName(), player.getLastName());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    private boolean doInsertRotowirePlayerData(RotowirePlayer player){
+        System.out.printf("Attempting to insert player data for rotowire player %s %s\n", player.getFirstName(), player.getLastName());
+        try {
+            Long playerId = getPlayerByName(player.getFirstName(), player.getLastName());
+            if (playerId != null) {
+                List<InternalAdp> adps = new ArrayList<>();
+                adps.add(new InternalAdp(DataSource.FANTRAX, AdpType.STANDARD, Double.parseDouble(player.getFantrax12Standard())));
+                adps.add(new InternalAdp(DataSource.FANTRAX, AdpType.PPR, Double.parseDouble(player.getFantrax12Ppr())));
+                adps.add(new InternalAdp(DataSource.NFFC, AdpType.PPR, Double.parseDouble(player.getNffc12Ppr())));
+                adps.add(new InternalAdp(DataSource.UNDERDOG, AdpType.HALF_PPR, Double.parseDouble(player.getUnderdogHalfPpr())));
+
+                upsertAdp(playerId, adps);
+                return true;
+            } else {
+                System.out.printf("Player ID not found for Rotowire player: %s %s\n", player.getFirstName(), player.getLastName());
+                return false;
+            }
+        } catch (Exception e) {
+            System.out.printf("Error during Rotowire player data insertion for: %s %s\n", player.getFirstName(), player.getLastName());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    private void retryInsertRotowirePlayerData(RotowirePlayer player, int retries) {
+        if(retries == 0){
+            doInsertRotowirePlayerData(player);
+            return;
+        }
+        while (retries > 0) {
+            if(doInsertRotowirePlayerData(player)) return;
             retries--;
             try {
                 long backoffTime = (long) Math.pow(2, 3 - retries); // Exponential backoff
@@ -151,18 +216,15 @@ public class PlayerDataRepository {
     }
 
     private String getSourceTypeColumnName(DataSource dataSource){
-        switch(dataSource){
-            case SLEEPER:
-                return "Sleeper";
-            case ESPN:
-                return "ESPN";
-            case YAHOO:
-                return "Yahoo";
-            case FANTASY_PROS:
-                return "FantasyPros";
-            default:
-                return "N/A";
-        }
+        return switch (dataSource) {
+            case SLEEPER -> "Sleeper";
+            case ESPN -> "ESPN";
+            case ROTOWIRE -> "Rotowire";
+            case FANTRAX -> "Fantrax";
+            case NFFC -> "NFFC";
+            case UNDERDOG -> "Underdog";
+            default -> "N/A";
+        };
     }
 
     private int getPositionId(String positionName) {
@@ -174,7 +236,10 @@ public class PlayerDataRepository {
     }
 
     private String normalizeName(String firstName, String lastName){
-        return firstName.toLowerCase().replaceAll("[^a-z]", "") +
-                lastName.toLowerCase().replaceAll("[^a-z]", "");
+        return normalize(firstName) + normalize(lastName);
+    }
+
+    private String normalize(String name){
+        return name.toLowerCase().replaceAll("jr.","").replaceAll("sr.","").replaceAll("III","").replaceAll("[^a-z]", "");
     }
 }

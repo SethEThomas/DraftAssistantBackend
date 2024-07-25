@@ -3,10 +3,10 @@ package com.seth.draft_assistant.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seth.draft_assistant.model.enums.DataSource;
-import com.seth.draft_assistant.model.sleeper.SleeperProjection;
 import com.seth.draft_assistant.model.espn.EspnPlayer;
+import com.seth.draft_assistant.model.rotowire.RotowirePlayer;
+import com.seth.draft_assistant.model.sleeper.SleeperProjection;
 import com.seth.draft_assistant.repository.PlayerDataRepository;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -23,7 +23,6 @@ import java.util.stream.Stream;
 
 import static com.seth.draft_assistant.Constants.*;
 
-@Slf4j
 @Service
 public class PlayerDataService {
 
@@ -43,6 +42,10 @@ public class PlayerDataService {
             if (!projections.isEmpty()) {
                 playerDataRepository.saveSleeperPlayerData(projections);
             }
+        }).exceptionally(ex -> {
+            System.out.println("Error fetching Sleeper data: ");
+            ex.printStackTrace();
+            return null;
         });
     }
 
@@ -59,8 +62,12 @@ public class PlayerDataService {
             return players;
         }).thenAccept(players -> {
             if (!players.isEmpty()) {
-                playerDataRepository.saveEspnPlayerDataWithRetry(players, 1);
+                playerDataRepository.saveEspnPlayerDataWithRetry(players, 0);
             }
+        }).exceptionally(ex -> {
+            System.out.println("Error fetching ESPN data: ");
+            ex.printStackTrace();
+            return null;
         });
     }
 
@@ -105,12 +112,65 @@ public class PlayerDataService {
     }
 
     @Async
+    public CompletableFuture<Void> fetchRotowireDataFromSource() {
+        return CompletableFuture.supplyAsync(() -> {
+            String rotowireUrl = "https://www.rotowire.com/football/tables/adp.php?pos=ALL";
+            String json;
+            try {
+                json = restTemplate.getForObject(rotowireUrl, String.class);
+            } catch (Exception e) {
+                System.out.println("Error fetching Rotowire data: " + e.getMessage());
+                e.printStackTrace();
+                return Collections.emptyList();
+            }
+            List<RotowirePlayer> players = parseRotowirePlayers(json);
+            return players;
+        }).thenAccept(players -> {
+            if (!players.isEmpty()) {
+                playerDataRepository.saveRotowireDataWithRetry((List<RotowirePlayer>) players, 0);
+            }
+        }).exceptionally(ex -> {
+            System.out.println("Error fetching Rotowire data: ");
+            ex.printStackTrace();
+            return null;
+        });
+    }
+
+    private List<RotowirePlayer> parseRotowirePlayers(String json) {
+        List<RotowirePlayer> players = new ArrayList<>();
+        try {
+            // Parse the JSON directly as an array
+            JsonNode arrayNode = objectMapper.readTree(json);
+
+            if (arrayNode.isArray()) {
+                for (JsonNode playerNode : arrayNode) {
+                    RotowirePlayer rotowirePlayer = new RotowirePlayer();
+                    rotowirePlayer.setFirstName(playerNode.path("firstname").asText());
+                    rotowirePlayer.setLastName(playerNode.path("lastname").asText());
+
+                    rotowirePlayer.setFantrax12Ppr(playerNode.path("fantrax12ppr").asText());
+                    rotowirePlayer.setNffc12Ppr(playerNode.path("nffc12ppr").asText());
+                    rotowirePlayer.setUnderdogHalfPpr(playerNode.path("underdoghalfppr").asText());
+                    rotowirePlayer.setFantrax12Standard(playerNode.path("fantrax12standard").asText());
+
+                    players.add(rotowirePlayer);
+                }
+            }
+        } catch (IOException e) {
+            System.out.println("Error parsing Rotowire player data");
+            e.printStackTrace();
+        }
+        return players;
+    }
+
+    @Async
     public CompletableFuture<Void> fetchDataFromSources(DataSource[] sources) {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
 
         if (Stream.of(sources).anyMatch(source -> source == DataSource.ALL)) {
             futures.add(fetchSleeperDataFromSource());
             futures.add(fetchEspnDataFromSource());
+            futures.add(fetchRotowireDataFromSource());
         } else {
             for (DataSource source : sources) {
                 switch (source) {
@@ -120,7 +180,9 @@ public class PlayerDataService {
                     case ESPN:
                         futures.add(fetchEspnDataFromSource());
                         break;
-                    // Add other sources here as needed
+                    case ROTOWIRE:
+                        futures.add(fetchRotowireDataFromSource());
+                        break;
                     default:
                         System.out.println("Unsupported data source: " + source);
                         break;
