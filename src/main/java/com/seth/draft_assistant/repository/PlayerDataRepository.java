@@ -1,9 +1,6 @@
 package com.seth.draft_assistant.repository;
 
-import com.seth.draft_assistant.model.enums.AdpType;
-import com.seth.draft_assistant.model.enums.DataSource;
-import com.seth.draft_assistant.model.enums.Position;
-import com.seth.draft_assistant.model.enums.Team;
+import com.seth.draft_assistant.model.enums.*;
 import com.seth.draft_assistant.model.espn.EspnPlayer;
 import com.seth.draft_assistant.model.internal.InternalAdp;
 import com.seth.draft_assistant.model.internal.Player;
@@ -23,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static com.seth.draft_assistant.helpers.DbHelper.*;
 import static com.seth.draft_assistant.helpers.StatsHelper.generateSleeperProjectedStats;
 
 @Repository
@@ -245,25 +243,30 @@ public class PlayerDataRepository {
     }
 
     public List<Player> getAllPlayers(){
-        String sql = buildAllPlayerDataDynamicQuery();
+        String sql = buildPlayerDataDynamicQuery(null);
         System.out.println(sql);
         return new ArrayList<>();
     }
 
-    private List<String> getAdpTypes() {
-        String sql = "SELECT Name FROM ADP_TYPE";
+    public Player getPlayer(Long playerId){
+        String sql = buildPlayerDataDynamicQuery(playerId);
+        System.out.println(sql);
+        return null;
+    }
+
+    private List<String> getTypes(TypeTable typeTable){
+        String sql = String.format("SELECT Name FROM %s",typeTable.name());
         return jdbcTemplate.queryForList(sql, String.class);
     }
 
-    private List<String> getScoreTypes() {
-        String sql = "SELECT Name FROM SCORE_TYPE";
-        return jdbcTemplate.queryForList(sql, String.class);
-    }
+    private String buildPlayerDataDynamicQuery(Long playerId) {
+        List<String> adpTypes = getTypes(TypeTable.ADP_TYPE);
+        List<String> scoreTypes = getTypes(TypeTable.SCORE_TYPE);
+        List<String> tierTypes = getTypes(TypeTable.POSITION);
 
-    private String buildAllPlayerDataDynamicQuery() {
-        List<String> adpTypes = getAdpTypes();
-        List<String> scoreTypes = getScoreTypes();
-        StringBuilder dynamicQuery = new StringBuilder(ALL_PLAYERS_BASE_QUERY);
+        StringBuilder dynamicQuery = new StringBuilder();
+        dynamicQuery.append("SELECT * FROM (");
+        dynamicQuery.append(ALL_PLAYERS_BASE_QUERY);
         for (String adpType : adpTypes) {
             String quotedAdpType = adpType.replace(" ", "_");
             dynamicQuery.append("MAX(CASE WHEN ad.AdpTypeName = '").append(adpType).append("' THEN ad.Sleeper ELSE NULL END) AS \"Sleeper_").append(quotedAdpType).append("\", ");
@@ -277,32 +280,33 @@ public class PlayerDataRepository {
             dynamicQuery.append("MAX(CASE WHEN st.Name = '").append(scoreType).append("' THEN ps.ProjectedAmount ELSE NULL END) AS \"").append(quotedScoreType).append("_PROJECTED_AMOUNT\", ");
             dynamicQuery.append("MAX(CASE WHEN st.Name = '").append(scoreType).append("' THEN ps.ProjectedAmount * st.PointValue ELSE NULL END) AS \"").append(quotedScoreType).append("_PROJECTED_POINTS\", ");
         }
-        dynamicQuery.setLength(dynamicQuery.length() - 2);
+        for (String tierType : tierTypes) {
+            String quotedTierType = tierType.replace(" ", "_");
+            dynamicQuery.append("MAX(CASE WHEN po.Name = '").append(tierType).append("' THEN ti.Tier ELSE NULL END) AS \"").append(quotedTierType).append("_TIER\", ");
+        }
+        dynamicQuery.setLength(dynamicQuery.length() - 2); // Remove the last comma and space
+
         dynamicQuery.append(" FROM PlayerData pd ")
                 .append("LEFT JOIN ADPData ad ON pd.id = ad.PlayerId ")
                 .append("LEFT JOIN PROJECTED_STATS ps ON pd.id = ps.PlayerId ")
                 .append("LEFT JOIN SCORE_TYPE st ON ps.ScoreType = st.id ")
-                .append("GROUP BY pd.id, pd.NormalizedName, pd.FirstName, pd.LastName, pd.Age, pd.PositionalDepth, pd.Notes, ")
-                .append("pd.IsSleeper, pd.ECR, pd.Position, pd.TeamName, pd.ByeWeek, pd.StrengthOfSchedule ")
-                .append("ORDER BY Sleeper_PPR;"); // Adjust ORDER BY as needed
+                .append("LEFT JOIN TIER ti ON pd.id = ti.PlayerId ")
+                .append("LEFT JOIN POSITION po ON ti.Position = po.ID ");
+
+        if (playerId != null) {
+            dynamicQuery.append("WHERE pd.id = ").append(playerId).append(" ");
+        }
+
+        dynamicQuery.append("GROUP BY pd.id, pd.NormalizedName, pd.FirstName, pd.LastName, pd.Age, pd.PositionalDepth, pd.Notes, ")
+                .append("pd.IsSleeper, pd.ECR, pd.Position, pd.TeamName, pd.ByeWeek, pd.StrengthOfSchedule ");
+        dynamicQuery.append(") as FullPlayerStats ");
+        // Find a correct column to order by
+        // For example, if you want to order by "Sleeper_PPR", ensure it exists
+        String defaultAdpType = "PPR";
+        String quotedDefaultAdpType = defaultAdpType.replace(" ", "_");
+        dynamicQuery.append("ORDER BY Sleeper_").append(quotedDefaultAdpType).append(" ASC;");
 
         return dynamicQuery.toString();
     }
 
-
-    private int getPositionId(String positionName) {
-        return Position.fromName(positionName).getId();
-    }
-
-    private int getTeamId(String teamAbbreviation) {
-        return Team.fromAbbreviation(teamAbbreviation).getId();
-    }
-
-    private String normalizeName(String firstName, String lastName){
-        return normalize(firstName) + normalize(lastName);
-    }
-
-    private String normalize(String name){
-        return name.toLowerCase().replaceAll("jr.","").replaceAll("sr.","").replaceAll("III","").replaceAll("[^a-z]", "");
-    }
 }

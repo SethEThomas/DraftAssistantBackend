@@ -115,10 +115,9 @@ public class PlayerDataService {
     @Async
     public CompletableFuture<Void> fetchRotowireDataFromSource() {
         return CompletableFuture.supplyAsync(() -> {
-            String rotowireUrl = "https://www.rotowire.com/football/tables/adp.php?pos=ALL";
             String json;
             try {
-                json = restTemplate.getForObject(rotowireUrl, String.class);
+                json = restTemplate.getForObject(ROTOWIRE_URL, String.class);
             } catch (Exception e) {
                 System.out.println("Error fetching Rotowire data: " + e.getMessage());
                 e.printStackTrace();
@@ -140,7 +139,6 @@ public class PlayerDataService {
     private List<RotowirePlayer> parseRotowirePlayers(String json) {
         List<RotowirePlayer> players = new ArrayList<>();
         try {
-            // Parse the JSON directly as an array
             JsonNode arrayNode = objectMapper.readTree(json);
 
             if (arrayNode.isArray()) {
@@ -165,7 +163,7 @@ public class PlayerDataService {
     }
 
     @Async
-    public CompletableFuture<Void> fetchDataFromSources(DataSource[] sources) {
+    public void fetchDataFromSources(DataSource[] sources) {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
 
         if (Stream.of(sources).anyMatch(source -> source == DataSource.ALL)) {
@@ -193,7 +191,7 @@ public class PlayerDataService {
 
         CompletableFuture<Void> allFutures = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
 
-        return allFutures.exceptionally(ex -> {
+        allFutures.exceptionally(ex -> {
             System.out.println("Error fetching data: ");
             ex.printStackTrace();
             return null;
@@ -202,5 +200,9 @@ public class PlayerDataService {
 
     public List<Player> getAllPlayers(){
         return playerDataRepository.getAllPlayers();
+    }
+
+    public Player getPlayer(Long playerId){
+        return playerDataRepository.getPlayer(playerId);
     }
 }

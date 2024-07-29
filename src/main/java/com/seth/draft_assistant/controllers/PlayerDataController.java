@@ -34,4 +34,9 @@ public class PlayerDataController {
     public ResponseEntity<List<Player>> getPlayers() {
         return ResponseEntity.status(200).body(playerDataService.getAllPlayers());
     }
+
+    @GetMapping("/player/{id}")
+    public ResponseEntity<Player> getPlayer(@PathVariable("id") Long playerId) {
+        return ResponseEntity.status(200).body(playerDataService.getPlayer(playerId));
+    }
 }
