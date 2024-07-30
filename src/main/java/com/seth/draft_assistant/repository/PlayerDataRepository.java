@@ -59,6 +59,7 @@ public class PlayerDataRepository {
             "pd.ByeWeek, " +
             "pd.StrengthOfSchedule ) " +
             "as FullPlayerStats ";
+    private static final String TIER_UPDATE_SQL = "INSERT INTO TIER (PlayerId, Position, Tier) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE Position = VALUES(Position), Tier = VALUES(Tier)";
 
     public void saveSleeperPlayerData(List<SleeperProjection> playerData) {
         System.out.printf("Saving %s rows of Sleeper data\n", playerData.size());
@@ -90,7 +91,7 @@ public class PlayerDataRepository {
     }
 
     public void updateTiers(List<TierUpdateRequest> requests) {
-        String sql = "INSERT INTO TIER (PlayerId, Position, Tier) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE Position = VALUES(Position), Tier = VALUES(Tier)";
+        String sql = TIER_UPDATE_SQL;
         jdbcTemplate.batchUpdate(sql, requests, requests.size(), (ps, argument) -> {
             ps.setLong(1, argument.getPlayerId());
             ps.setInt(2, argument.getTierType().getId());
