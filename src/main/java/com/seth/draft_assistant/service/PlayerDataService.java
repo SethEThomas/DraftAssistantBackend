@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seth.draft_assistant.model.enums.DataSource;
 import com.seth.draft_assistant.model.espn.EspnPlayer;
 import com.seth.draft_assistant.model.internal.Player;
+import com.seth.draft_assistant.model.internal.requests.PlayerUpdateRequest;
+import com.seth.draft_assistant.model.internal.requests.TierUpdateRequest;
 import com.seth.draft_assistant.model.rotowire.RotowirePlayer;
 import com.seth.draft_assistant.model.sleeper.SleeperProjection;
 import com.seth.draft_assistant.repository.PlayerDataRepository;
@@ -32,6 +34,16 @@ public class PlayerDataService {
 
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Async
+    public void updatePlayers(List<PlayerUpdateRequest> request){
+        playerDataRepository.updatePlayers(request);
+    }
+
+    @Async
+    public void updateTiers(List<TierUpdateRequest> request){
+        playerDataRepository.updateTiers(request);
+    }
 
     @Async
     public CompletableFuture<Void> fetchSleeperDataFromSource() {

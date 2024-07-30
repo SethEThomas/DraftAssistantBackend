@@ -2,19 +2,23 @@ package com.seth.draft_assistant.repository;
 
 import com.seth.draft_assistant.model.enums.*;
 import com.seth.draft_assistant.model.espn.EspnPlayer;
-import com.seth.draft_assistant.model.internal.InternalAdp;
-import com.seth.draft_assistant.model.internal.Player;
-import com.seth.draft_assistant.model.internal.ProjectedStat;
+import com.seth.draft_assistant.model.internal.*;
+import com.seth.draft_assistant.model.internal.requests.PlayerUpdateRequest;
+import com.seth.draft_assistant.model.internal.requests.TierUpdateRequest;
 import com.seth.draft_assistant.model.rotowire.RotowirePlayer;
 import com.seth.draft_assistant.model.sleeper.SleeperProjection;
 import com.seth.draft_assistant.model.sleeper.SleeperStats;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,7 +35,7 @@ public class PlayerDataRepository {
 
     private static final String ALL_PLAYERS_BASE_QUERY = "WITH PlayerData AS (" +
             "SELECT pl.id, pl.NormalizedName, pl.FirstName, pl.LastName, pl.Age, pl.PositionalDepth, " +
-            "pl.Notes, pl.IsSleeper, pl.ECR, po.Name AS Position, te.Name AS TeamName, te.ByeWeek AS ByeWeek, " +
+            "pl.Notes, pl.IsSleeper, pl.ECR, po.Name AS Position, te.Name AS TeamName, te.Abbreviation AS TeamAbbreviation, te.ByeWeek AS ByeWeek, " +
             "sos.StrengthOfSchedule " +
             "FROM PLAYER pl " +
             "JOIN POSITION po ON pl.Position = po.id " +
@@ -42,8 +46,19 @@ public class PlayerDataRepository {
             "FROM ADP a " +
             "JOIN ADP_TYPE at ON a.AdpType = at.id) " +
             "SELECT pd.*, ";
-    private static final String ALL_PLAYERS_GROUP_BY = "GROUP BY pd.id, pd.NormalizedName, pd.FirstName, pd.LastName, pd.Age, pd.PositionalDepth, pd.Notes, " +
-            "pd.IsSleeper, pd.ECR, pd.Position, pd.TeamName, pd.ByeWeek, pd.StrengthOfSchedule";
+    private static final String ALL_PLAYERS_GROUP_BY = "GROUP BY pd.id, " +
+            "pd.NormalizedName, " +
+            "pd.FirstName, " +
+            "pd.LastName, pd.Age, " +
+            "pd.PositionalDepth, " +
+            "pd.Notes, " +
+            "pd.IsSleeper, " +
+            "pd.ECR, " +
+            "pd.Position, " +
+            "pd.TeamName, " +
+            "pd.ByeWeek, " +
+            "pd.StrengthOfSchedule ) " +
+            "as FullPlayerStats ";
 
     public void saveSleeperPlayerData(List<SleeperProjection> playerData) {
         System.out.printf("Saving %s rows of Sleeper data\n", playerData.size());
@@ -72,6 +87,48 @@ public class PlayerDataRepository {
             retryInsertRotowirePlayerData(player, maxRetries);
         }
         System.out.println("Finished saving rotowire data");
+    }
+
+    public void updateTiers(List<TierUpdateRequest> requests) {
+        String sql = "INSERT INTO TIER (PlayerId, Position, Tier) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE Position = VALUES(Position), Tier = VALUES(Tier)";
+        jdbcTemplate.batchUpdate(sql, requests, requests.size(), (ps, argument) -> {
+            ps.setLong(1, argument.getPlayerId());
+            ps.setInt(2, argument.getTierType().getId());
+            ps.setInt(3, argument.getTier());
+        });
+    }
+
+    public void updatePlayers(List<PlayerUpdateRequest> playerUpdateRequests) {
+        List<String> sqlStatements = new ArrayList<>();
+        List<List<Object>> paramsList = new ArrayList<>();
+
+        for (PlayerUpdateRequest updateRequest : playerUpdateRequests) {
+            String sql = buildUpdateSql(updateRequest);
+            List<Object> params = buildUpdateParams(updateRequest);
+            sqlStatements.add(sql);
+            paramsList.add(params);
+        }
+
+        for (int i = 0; i < sqlStatements.size(); i++) {
+            final int index = i;
+            String sql = sqlStatements.get(i);
+            List<Object> params = paramsList.get(i);
+
+            jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
+                @Override
+                public void setValues(PreparedStatement ps, int i) throws SQLException {
+                    List<Object> params = paramsList.get(index);
+                    for (int j = 0; j < params.size(); j++) {
+                        ps.setObject(j + 1, params.get(j));
+                    }
+                }
+
+                @Override
+                public int getBatchSize() {
+                    return paramsList.size();
+                }
+            });
+        }
     }
 
     private void retryInsertEspnPlayerData(EspnPlayer player, int retries) {
@@ -244,14 +301,12 @@ public class PlayerDataRepository {
 
     public List<Player> getAllPlayers(){
         String sql = buildPlayerDataDynamicQuery(null);
-        System.out.println(sql);
-        return new ArrayList<>();
+        return jdbcTemplate.query(sql, new PlayerRowMapper());
     }
 
     public Player getPlayer(Long playerId){
         String sql = buildPlayerDataDynamicQuery(playerId);
-        System.out.println(sql);
-        return null;
+        return jdbcTemplate.query(sql, new PlayerRowMapper()).get(0);
     }
 
     private List<String> getTypes(TypeTable typeTable){
@@ -297,9 +352,7 @@ public class PlayerDataRepository {
             dynamicQuery.append("WHERE pd.id = ").append(playerId).append(" ");
         }
 
-        dynamicQuery.append("GROUP BY pd.id, pd.NormalizedName, pd.FirstName, pd.LastName, pd.Age, pd.PositionalDepth, pd.Notes, ")
-                .append("pd.IsSleeper, pd.ECR, pd.Position, pd.TeamName, pd.ByeWeek, pd.StrengthOfSchedule ");
-        dynamicQuery.append(") as FullPlayerStats ");
+        dynamicQuery.append(ALL_PLAYERS_GROUP_BY);
         // Find a correct column to order by
         // For example, if you want to order by "Sleeper_PPR", ensure it exists
         String defaultAdpType = "PPR";
@@ -307,6 +360,129 @@ public class PlayerDataRepository {
         dynamicQuery.append("ORDER BY Sleeper_").append(quotedDefaultAdpType).append(" ASC;");
 
         return dynamicQuery.toString();
+    }
+
+    private String buildUpdateSql(PlayerUpdateRequest updateRequest) {
+        StringBuilder sql = new StringBuilder("UPDATE PLAYER SET ");
+        boolean first = true;
+
+        if (updateRequest.getAge() != null) {
+            if (!first) sql.append(", ");
+            sql.append("Age = ?");
+            first = false;
+        }
+        if (updateRequest.getPositionalDepth() != null) {
+            if (!first) sql.append(", ");
+            sql.append("PositionalDepth = ?");
+            first = false;
+        }
+        if (updateRequest.getNotes() != null) {
+            if (!first) sql.append(", ");
+            sql.append("Notes = ?");
+            first = false;
+        }
+        if (updateRequest.getIsSleeper() != null) {
+            if (!first) sql.append(", ");
+            sql.append("IsSleeper = ?");
+            first = false;
+        }
+        if (updateRequest.getEcr() != null) {
+            if (!first) sql.append(", ");
+            sql.append("ECR = ?");
+        }
+        sql.append(" WHERE ID = ?");
+        return sql.toString();
+    }
+
+    private List<Object> buildUpdateParams(PlayerUpdateRequest updateRequest) {
+        List<Object> params = new ArrayList<>();
+
+        if (updateRequest.getAge() != null) {
+            params.add(updateRequest.getAge());
+        }
+        if (updateRequest.getPositionalDepth() != null) {
+            params.add(updateRequest.getPositionalDepth());
+        }
+        if (updateRequest.getNotes() != null) {
+            params.add(updateRequest.getNotes());
+        }
+        if (updateRequest.getIsSleeper() != null) {
+            params.add(updateRequest.getIsSleeper());
+        }
+        if (updateRequest.getEcr() != null) {
+            params.add(updateRequest.getEcr());
+        }
+        params.add(updateRequest.getId());
+        return params;
+    }
+
+    private static class PlayerRowMapper implements RowMapper<Player>{
+        @Override
+        public Player mapRow(ResultSet rs, int rowNum) throws SQLException {
+            AggregateAdp adp = new AggregateAdp(
+                    rs.getDouble("Sleeper_Standard"), rs.getDouble("ESPN_Standard"), rs.getDouble("FANTRAX_Standard"),
+                    rs.getDouble("NFFC_Standard"), rs.getDouble("UNDERDOG_Standard"), rs.getDouble("Sleeper_Half_PPR"),
+                    rs.getDouble("ESPN_Half_PPR"), rs.getDouble("FANTRAX_Half_PPR"), rs.getDouble("NFFC_Half_PPR"),
+                    rs.getDouble("UNDERDOG_Half_PPR"), rs.getDouble("Sleeper_PPR"), rs.getDouble("ESPN_PPR"),
+                    rs.getDouble("FANTRAX_PPR"), rs.getDouble("NFFC_PPR"), rs.getDouble("UNDERDOG_PPR"),
+                    rs.getDouble("Sleeper_2QB"), rs.getDouble("ESPN_2QB"), rs.getDouble("FANTRAX_2QB"),
+                    rs.getDouble("NFFC_2QB"), rs.getDouble("UNDERDOG_2QB"), rs.getDouble("Sleeper_Dynasty_Standard"),
+                    rs.getDouble("ESPN_Dynasty_Standard"), rs.getDouble("FANTRAX_Dynasty_Standard"),
+                    rs.getDouble("NFFC_Dynasty_Standard"), rs.getDouble("UNDERDOG_Dynasty_Standard"),
+                    rs.getDouble("Sleeper_Dynasty_Half_PPR"), rs.getDouble("ESPN_Dynasty_Half_PPR"),
+                    rs.getDouble("FANTRAX_Dynasty_Half_PPR"), rs.getDouble("NFFC_Dynasty_Half_PPR"),
+                    rs.getDouble("UNDERDOG_Dynasty_Half_PPR"), rs.getDouble("Sleeper_Dynasty_PPR"),
+                    rs.getDouble("ESPN_Dynasty_PPR"), rs.getDouble("FANTRAX_Dynasty_PPR"),
+                    rs.getDouble("NFFC_Dynasty_PPR"), rs.getDouble("UNDERDOG_Dynasty_PPR"),
+                    rs.getDouble("Sleeper_Dynasty_2QB"), rs.getDouble("ESPN_Dynasty_2QB"),
+                    rs.getDouble("FANTRAX_Dynasty_2QB"), rs.getDouble("NFFC_Dynasty_2QB"),
+                    rs.getDouble("UNDERDOG_Dynasty_2QB")
+            );
+            AggregateStat stats = new AggregateStat(
+                    new SingleStat(rs.getDouble("CompletionPercentage_PROJECTED_AMOUNT"), rs.getDouble("CompletionPercentage_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("Passing2Pt_PROJECTED_AMOUNT"), rs.getDouble("Passing2Pt_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("PassAttempt_PROJECTED_AMOUNT"), rs.getDouble("PassAttempt_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("PassCompletion_PROJECTED_AMOUNT"), rs.getDouble("PassCompletion_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("PassingFirstDown_PROJECTED_AMOUNT"), rs.getDouble("PassingFirstDown_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("PassingInterception_PROJECTED_AMOUNT"), rs.getDouble("PassingInterception_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("PassingTd_PROJECTED_AMOUNT"), rs.getDouble("PassingTd_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("PassingYard_PROJECTED_AMOUNT"), rs.getDouble("PassingYard_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("Fumble_PROJECTED_AMOUNT"), rs.getDouble("Fumble_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("Receiving2Pt_PROJECTED_AMOUNT"), rs.getDouble("Receiving2Pt_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("Reception_PROJECTED_AMOUNT"), rs.getDouble("Reception_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("Reception40Plus_PROJECTED_AMOUNT"), rs.getDouble("Reception40Plus_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("ReceptionFirstDown_PROJECTED_AMOUNT"), rs.getDouble("ReceptionFirstDown_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("ReceivingTd_PROJECTED_AMOUNT"), rs.getDouble("ReceivingTd_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("ReceivingYard_PROJECTED_AMOUNT"), rs.getDouble("ReceivingYard_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("Rushing2Pt_PROJECTED_AMOUNT"), rs.getDouble("Rushing2Pt_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("RushingAttempt_PROJECTED_AMOUNT"), rs.getDouble("RushingAttempt_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("RushingFirstDown_PROJECTED_AMOUNT"), rs.getDouble("RushingFirstDown_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("RushingTd_PROJECTED_AMOUNT"), rs.getDouble("RushingTd_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("RushingYard_PROJECTED_AMOUNT"), rs.getDouble("RushingYard_PROJECTED_POINTS")),
+                    new SingleStat(rs.getDouble("TeReceptionBonus_PROJECTED_AMOUNT"), rs.getDouble("TeReceptionBonus_PROJECTED_POINTS"))
+            );
+            String position = rs.getString("Position");
+            return new Player(
+                    rs.getLong("id"),
+                    rs.getString("NormalizedName"),
+                    rs.getString("FirstName"),
+                    rs.getString("LastName"),
+                    rs.getInt("Age"),
+                    rs.getInt("PositionalDepth"),
+                    rs.getString("Notes"),
+                    rs.getBoolean("IsSleeper"),
+                    rs.getDouble("ECR"),
+                    position,
+                    rs.getString("TeamName"),
+                    rs.getString("TeamAbbreviation"),
+                    rs.getInt("ByeWeek"),
+                    rs.getInt("StrengthOfSchedule"),
+                    rs.getInt("Overall_Tier"),
+                    rs.getInt(String.format("%s_Tier",position)),
+                    adp,
+                    stats
+            );
+        }
     }
 
 }

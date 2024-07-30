@@ -1,5 +1,10 @@
 package com.seth.draft_assistant.model.internal;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+
+@AllArgsConstructor
+@Data
 public class AggregateAdp {
     private double sleeperStandard;
     private double espnStandard;

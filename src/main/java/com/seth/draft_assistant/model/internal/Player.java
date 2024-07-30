@@ -10,16 +10,18 @@ public class Player {
     private String normalizedName;
     private String firstName;
     private String lastName;
-    private String teamName;
-    private String teamAbbreviation;
+    private int age;
     private int positionalDepth;
     private String notes;
     private Boolean isSleeper;
     private double ecr;
     private String position;
-    private AggregateStat stats;
-    private AggregateAdp adp;
+    private String teamName;
+    private String teamAbbreviation;
+    private int byeWeek;
     private int strengthOfSchedule;
     private int overallTier;
     private int positionalTier;
+    private AggregateAdp adp;
+    private AggregateStat stats;
 }

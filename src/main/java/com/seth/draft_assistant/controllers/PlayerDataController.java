@@ -2,16 +2,18 @@ package com.seth.draft_assistant.controllers;
 
 import com.seth.draft_assistant.model.enums.DataSource;
 import com.seth.draft_assistant.model.internal.Player;
-import com.seth.draft_assistant.model.sleeper.SleeperProjection;
+import com.seth.draft_assistant.model.internal.requests.PlayerUpdateRequest;
+import com.seth.draft_assistant.model.internal.requests.TierUpdateRequest;
 import com.seth.draft_assistant.service.PlayerDataService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static com.seth.draft_assistant.helpers.PlayerHelper.getPlayerIds;
 
 
 @RestController
@@ -35,8 +37,26 @@ public class PlayerDataController {
         return ResponseEntity.status(200).body(playerDataService.getAllPlayers());
     }
 
-    @GetMapping("/player/{id}")
+    @GetMapping("/players/{id}")
     public ResponseEntity<Player> getPlayer(@PathVariable("id") Long playerId) {
         return ResponseEntity.status(200).body(playerDataService.getPlayer(playerId));
+    }
+
+    @PostMapping("/players/update")
+    public ResponseEntity<String> updatePlayers(@RequestBody List<PlayerUpdateRequest> request){
+        List<Long> playerIds = getPlayerIds(request);
+        playerDataService.updatePlayers(request);
+        return ResponseEntity.status(201).body("Updating players: " + playerIds.stream()
+                .map(String::valueOf)
+                .collect(Collectors.joining(", ")));
+    }
+
+    @PostMapping("/players/update-tiers")
+    public ResponseEntity<String> updatePlayerTiers(@RequestBody List<TierUpdateRequest> request){
+        List<Long> playerIds = getPlayerIds(request);
+        playerDataService.updateTiers(request);
+        return ResponseEntity.status(201).body("Updating player tiers for players: " + playerIds.stream()
+                .map(String::valueOf)
+                .collect(Collectors.joining(", ")));
     }
 }

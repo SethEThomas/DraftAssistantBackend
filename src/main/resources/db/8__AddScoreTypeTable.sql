@@ -25,7 +25,7 @@ INSERT IGNORE INTO `DraftAssistant`.`SCORE_TYPE`(`ID`,`Name`,`DisplayName`, `Poi
 INSERT IGNORE INTO `DraftAssistant`.`SCORE_TYPE`(`ID`,`Name`,`DisplayName`, `PointValue`) VALUES ("18","RushingFirstDown", "Rushing first down", 0);
 INSERT IGNORE INTO `DraftAssistant`.`SCORE_TYPE`(`ID`,`Name`,`DisplayName`, `PointValue`) VALUES ("19","RushingTd", "Rushing TD", 6);
 INSERT IGNORE INTO `DraftAssistant`.`SCORE_TYPE`(`ID`,`Name`,`DisplayName`, `PointValue`) VALUES ("20","RushingYard", "Rushing yard", 0.1);
-INSERT IGNORE INTO `DraftAssistant`.`SCORE_TYPE`(`ID`,`Name`,`DisplayName`, `PointValue`) VALUES ("21","TeReceptionBonus", "Tight End Reception Bonus", 0.75);
+INSERT IGNORE INTO `DraftAssistant`.`SCORE_TYPE`(`ID`,`Name`,`DisplayName`, `PointValue`) VALUES ("21","TeReceptionBonus", "Tight End Reception Bonus", 0.5);
 
   ALTER TABLE `DraftAssistant`.`PROJECTED_STATS`
   DROP COLUMN `CompletionPercentage`,
