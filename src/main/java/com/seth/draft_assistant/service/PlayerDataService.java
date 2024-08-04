@@ -6,6 +6,7 @@ import com.seth.draft_assistant.model.enums.DataSource;
 import com.seth.draft_assistant.model.espn.EspnPlayer;
 import com.seth.draft_assistant.model.internal.Player;
 import com.seth.draft_assistant.model.internal.requests.PlayerUpdateRequest;
+import com.seth.draft_assistant.model.internal.requests.RankUpdateRequest;
 import com.seth.draft_assistant.model.internal.requests.TierUpdateRequest;
 import com.seth.draft_assistant.model.rotowire.RotowirePlayer;
 import com.seth.draft_assistant.model.sleeper.SleeperProjection;
@@ -43,6 +44,11 @@ public class PlayerDataService {
     @Async
     public void updateTiers(List<TierUpdateRequest> request){
         playerDataRepository.updateTiers(request);
+    }
+
+    @Async
+    public void updateRanks(List<RankUpdateRequest> request){
+        playerDataRepository.updateRanks(request);
     }
 
     @Async

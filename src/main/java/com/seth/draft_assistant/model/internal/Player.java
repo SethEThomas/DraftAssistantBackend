@@ -22,6 +22,8 @@ public class Player {
     private int strengthOfSchedule;
     private int overallTier;
     private int positionalTier;
+    private int overallRank;
+    private int positionalRank;
     private AggregateAdp adp;
     private AggregateStat stats;
 }

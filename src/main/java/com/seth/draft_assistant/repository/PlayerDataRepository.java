@@ -4,6 +4,7 @@ import com.seth.draft_assistant.model.enums.*;
 import com.seth.draft_assistant.model.espn.EspnPlayer;
 import com.seth.draft_assistant.model.internal.*;
 import com.seth.draft_assistant.model.internal.requests.PlayerUpdateRequest;
+import com.seth.draft_assistant.model.internal.requests.RankUpdateRequest;
 import com.seth.draft_assistant.model.internal.requests.TierUpdateRequest;
 import com.seth.draft_assistant.model.rotowire.RotowirePlayer;
 import com.seth.draft_assistant.model.sleeper.SleeperProjection;
@@ -32,10 +33,10 @@ public class PlayerDataRepository {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
-
+    private static final String SELECT_PLAYERS_QUERY_PREFIX = "SELECT fps.*, rap.`Rank` AS POSITIONAL_RANK, tip.`TIER` AS POSITIONAL_TIER FROM (";
     private static final String ALL_PLAYERS_BASE_QUERY = "WITH PlayerData AS (" +
             "SELECT pl.id, pl.NormalizedName, pl.FirstName, pl.LastName, pl.Age, pl.PositionalDepth, " +
-            "pl.Notes, pl.IsSleeper, pl.ECR, po.Name AS Position, te.Name AS TeamName, te.Abbreviation AS TeamAbbreviation, te.ByeWeek AS ByeWeek, " +
+            "pl.Notes, pl.IsSleeper, pl.ECR, po.id AS PositionId, po.Name AS Position, te.Name AS TeamName, te.Abbreviation AS TeamAbbreviation, te.ByeWeek AS ByeWeek, " +
             "sos.StrengthOfSchedule " +
             "FROM PLAYER pl " +
             "JOIN POSITION po ON pl.Position = po.id " +
@@ -58,9 +59,10 @@ public class PlayerDataRepository {
             "pd.TeamName, " +
             "pd.ByeWeek, " +
             "pd.StrengthOfSchedule ) " +
-            "as FullPlayerStats ";
+            "as fps ";
+    private static final String ADD_POSITIONAL_RANKINGS_SQL = " LEFT JOIN `RANK` rap ON fps.id = rap.PlayerId AND fps.PositionId = rap.Position LEFT JOIN `TIER` tip ON fps.id = tip.PlayerId AND fps.PositionId = tip.Position ";
     private static final String TIER_UPDATE_SQL = "INSERT INTO TIER (PlayerId, Position, Tier) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE Position = VALUES(Position), Tier = VALUES(Tier)";
-
+    private static final String RANK_UPDATE_SQL = "INSERT INTO `RANK` (PlayerId, Position, `Rank`) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE Position = VALUES(Position), `Rank` = VALUES(`Rank`)";
     public void saveSleeperPlayerData(List<SleeperProjection> playerData) {
         System.out.printf("Saving %s rows of Sleeper data\n", playerData.size());
         for (SleeperProjection player : playerData) {
@@ -96,6 +98,15 @@ public class PlayerDataRepository {
             ps.setLong(1, argument.getPlayerId());
             ps.setInt(2, argument.getTierType().getId());
             ps.setInt(3, argument.getTier());
+        });
+    }
+
+    public void updateRanks(List<RankUpdateRequest> requests) {
+        String sql = RANK_UPDATE_SQL;
+        jdbcTemplate.batchUpdate(sql, requests, requests.size(), (ps, argument) -> {
+            ps.setLong(1, argument.getPlayerId());
+            ps.setInt(2, argument.getRankType().getId());
+            ps.setInt(3, argument.getRank());
         });
     }
 
@@ -318,10 +329,10 @@ public class PlayerDataRepository {
     private String buildPlayerDataDynamicQuery(Long playerId) {
         List<String> adpTypes = getTypes(TypeTable.ADP_TYPE);
         List<String> scoreTypes = getTypes(TypeTable.SCORE_TYPE);
-        List<String> tierTypes = getTypes(TypeTable.POSITION);
+        List<String> positionTypes = getTypes(TypeTable.POSITION);
 
         StringBuilder dynamicQuery = new StringBuilder();
-        dynamicQuery.append("SELECT * FROM (");
+        dynamicQuery.append(SELECT_PLAYERS_QUERY_PREFIX);
         dynamicQuery.append(ALL_PLAYERS_BASE_QUERY);
         for (String adpType : adpTypes) {
             String quotedAdpType = adpType.replace(" ", "_");
@@ -336,18 +347,17 @@ public class PlayerDataRepository {
             dynamicQuery.append("MAX(CASE WHEN st.Name = '").append(scoreType).append("' THEN ps.ProjectedAmount ELSE NULL END) AS \"").append(quotedScoreType).append("_PROJECTED_AMOUNT\", ");
             dynamicQuery.append("MAX(CASE WHEN st.Name = '").append(scoreType).append("' THEN ps.ProjectedAmount * st.PointValue ELSE NULL END) AS \"").append(quotedScoreType).append("_PROJECTED_POINTS\", ");
         }
-        for (String tierType : tierTypes) {
-            String quotedTierType = tierType.replace(" ", "_");
-            dynamicQuery.append("MAX(CASE WHEN po.Name = '").append(tierType).append("' THEN ti.Tier ELSE NULL END) AS \"").append(quotedTierType).append("_TIER\", ");
-        }
+        dynamicQuery.append("MAX(CASE WHEN po.Name = '").append(Position.OVERALL.getName()).append("' THEN tio.Tier ELSE NULL END) AS \"").append(Position.OVERALL.getName()).append("_TIER\", ");
+        dynamicQuery.append("MAX(CASE WHEN po.Name = '").append(Position.OVERALL.getName()).append("' THEN rao.`Rank` ELSE NULL END) AS \"").append(Position.OVERALL.getName()).append("_RANK\", ");
         dynamicQuery.setLength(dynamicQuery.length() - 2); // Remove the last comma and space
 
         dynamicQuery.append(" FROM PlayerData pd ")
                 .append("LEFT JOIN ADPData ad ON pd.id = ad.PlayerId ")
                 .append("LEFT JOIN PROJECTED_STATS ps ON pd.id = ps.PlayerId ")
                 .append("LEFT JOIN SCORE_TYPE st ON ps.ScoreType = st.id ")
-                .append("LEFT JOIN TIER ti ON pd.id = ti.PlayerId ")
-                .append("LEFT JOIN POSITION po ON ti.Position = po.ID ");
+                .append("LEFT JOIN TIER tio ON pd.id = tio.PlayerId AND tio.Position = " + Position.OVERALL.getId())
+                .append(" LEFT JOIN `RANK` rao ON pd.id = rao.PlayerId AND rao.Position = " + Position.OVERALL.getId())
+                .append(" LEFT JOIN POSITION po ON tio.Position = po.ID ");
 
         if (playerId != null) {
             dynamicQuery.append("WHERE pd.id = ").append(playerId).append(" ");
@@ -358,6 +368,7 @@ public class PlayerDataRepository {
         // For example, if you want to order by "Sleeper_PPR", ensure it exists
         String defaultAdpType = "PPR";
         String quotedDefaultAdpType = defaultAdpType.replace(" ", "_");
+        dynamicQuery.append(ADD_POSITIONAL_RANKINGS_SQL);
         dynamicQuery.append("ORDER BY Sleeper_").append(quotedDefaultAdpType).append(" ASC;");
 
         return dynamicQuery.toString();
@@ -462,7 +473,6 @@ public class PlayerDataRepository {
                     new SingleStat(rs.getDouble("RushingYard_PROJECTED_AMOUNT"), rs.getDouble("RushingYard_PROJECTED_POINTS")),
                     new SingleStat(rs.getDouble("TeReceptionBonus_PROJECTED_AMOUNT"), rs.getDouble("TeReceptionBonus_PROJECTED_POINTS"))
             );
-            String position = rs.getString("Position");
             return new Player(
                     rs.getLong("id"),
                     rs.getString("NormalizedName"),
@@ -473,13 +483,15 @@ public class PlayerDataRepository {
                     rs.getString("Notes"),
                     rs.getBoolean("IsSleeper"),
                     rs.getDouble("ECR"),
-                    position,
+                    rs.getString("Position"),
                     rs.getString("TeamName"),
                     rs.getString("TeamAbbreviation"),
                     rs.getInt("ByeWeek"),
                     rs.getInt("StrengthOfSchedule"),
-                    rs.getInt("Overall_Tier"),
-                    rs.getInt(String.format("%s_Tier",position)),
+                    rs.getInt("OVERALL_TIER"),
+                    rs.getInt("POSITIONAL_TIER"),
+                    rs.getInt("OVERALL_RANK"),
+                    rs.getInt("POSITIONAL_RANK"),
                     adp,
                     stats
             );

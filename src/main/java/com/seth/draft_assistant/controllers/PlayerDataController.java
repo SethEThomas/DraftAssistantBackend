@@ -3,6 +3,7 @@ package com.seth.draft_assistant.controllers;
 import com.seth.draft_assistant.model.enums.DataSource;
 import com.seth.draft_assistant.model.internal.Player;
 import com.seth.draft_assistant.model.internal.requests.PlayerUpdateRequest;
+import com.seth.draft_assistant.model.internal.requests.RankUpdateRequest;
 import com.seth.draft_assistant.model.internal.requests.TierUpdateRequest;
 import com.seth.draft_assistant.service.PlayerDataService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,6 +57,15 @@ public class PlayerDataController {
         List<Long> playerIds = getPlayerIds(request);
         playerDataService.updateTiers(request);
         return ResponseEntity.status(201).body("Updating player tiers for players: " + playerIds.stream()
+                .map(String::valueOf)
+                .collect(Collectors.joining(", ")));
+    }
+
+    @PostMapping("/players/update-ranks")
+    public ResponseEntity<String> updatePlayerRanks(@RequestBody List<RankUpdateRequest> request){
+        List<Long> playerIds = getPlayerIds(request);
+        playerDataService.updateRanks(request);
+        return ResponseEntity.status(201).body("Updating player ranks for players: " + playerIds.stream()
                 .map(String::valueOf)
                 .collect(Collectors.joining(", ")));
     }
