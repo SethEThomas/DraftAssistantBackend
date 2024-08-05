@@ -2,10 +2,15 @@ package com.seth.draft_assistant.repository;
 
 import com.seth.draft_assistant.model.enums.*;
 import com.seth.draft_assistant.model.espn.EspnPlayer;
-import com.seth.draft_assistant.model.internal.*;
+import com.seth.draft_assistant.model.internal.adp.AggregateAdp;
+import com.seth.draft_assistant.model.internal.adp.InternalAdp;
+import com.seth.draft_assistant.model.internal.player.Player;
 import com.seth.draft_assistant.model.internal.requests.PlayerUpdateRequest;
 import com.seth.draft_assistant.model.internal.requests.RankUpdateRequest;
 import com.seth.draft_assistant.model.internal.requests.TierUpdateRequest;
+import com.seth.draft_assistant.model.internal.scoring.AggregateStat;
+import com.seth.draft_assistant.model.internal.scoring.ProjectedStat;
+import com.seth.draft_assistant.model.internal.scoring.SingleStat;
 import com.seth.draft_assistant.model.rotowire.RotowirePlayer;
 import com.seth.draft_assistant.model.sleeper.SleeperProjection;
 import com.seth.draft_assistant.model.sleeper.SleeperStats;

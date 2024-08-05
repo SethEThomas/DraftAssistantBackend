@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seth.draft_assistant.model.enums.DataSource;
 import com.seth.draft_assistant.model.espn.EspnPlayer;
-import com.seth.draft_assistant.model.internal.Player;
+import com.seth.draft_assistant.model.internal.player.Player;
 import com.seth.draft_assistant.model.internal.requests.PlayerUpdateRequest;
 import com.seth.draft_assistant.model.internal.requests.RankUpdateRequest;
 import com.seth.draft_assistant.model.internal.requests.TierUpdateRequest;

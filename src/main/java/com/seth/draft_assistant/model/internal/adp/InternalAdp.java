@@ -1,4 +1,4 @@
-package com.seth.draft_assistant.model.internal;
+package com.seth.draft_assistant.model.internal.adp;
 
 import com.seth.draft_assistant.model.enums.AdpType;
 import com.seth.draft_assistant.model.enums.DataSource;

@@ -1,5 +1,7 @@
-package com.seth.draft_assistant.model.internal;
+package com.seth.draft_assistant.model.internal.player;
 
+import com.seth.draft_assistant.model.internal.scoring.AggregateStat;
+import com.seth.draft_assistant.model.internal.adp.AggregateAdp;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 

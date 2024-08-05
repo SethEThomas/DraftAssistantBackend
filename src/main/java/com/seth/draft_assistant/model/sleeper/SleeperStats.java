@@ -3,7 +3,7 @@ package com.seth.draft_assistant.model.sleeper;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.seth.draft_assistant.model.enums.AdpType;
 import com.seth.draft_assistant.model.enums.DataSource;
-import com.seth.draft_assistant.model.internal.InternalAdp;
+import com.seth.draft_assistant.model.internal.adp.InternalAdp;
 import lombok.Data;
 
 import java.util.List;

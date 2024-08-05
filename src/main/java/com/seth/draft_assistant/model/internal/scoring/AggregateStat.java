@@ -1,4 +1,4 @@
-package com.seth.draft_assistant.model.internal;
+package com.seth.draft_assistant.model.internal.scoring;
 
 import lombok.Data;
 

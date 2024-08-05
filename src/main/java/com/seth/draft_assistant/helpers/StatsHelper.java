@@ -1,7 +1,7 @@
 package com.seth.draft_assistant.helpers;
 
 import com.seth.draft_assistant.model.enums.ScoreType;
-import com.seth.draft_assistant.model.internal.ProjectedStat;
+import com.seth.draft_assistant.model.internal.scoring.ProjectedStat;
 import com.seth.draft_assistant.model.sleeper.SleeperStats;
 
 import java.util.ArrayList;

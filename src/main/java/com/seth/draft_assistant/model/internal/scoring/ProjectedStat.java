@@ -1,4 +1,4 @@
-package com.seth.draft_assistant.model.internal;
+package com.seth.draft_assistant.model.internal.scoring;
 
 import com.seth.draft_assistant.model.enums.ScoreType;
 import lombok.AllArgsConstructor;
