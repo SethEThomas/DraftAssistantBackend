@@ -56,6 +56,7 @@ public enum Team {
     }
 
     public static Team fromAbbreviation(String abbreviation) {
+        if(abbreviation.equalsIgnoreCase("JAX")) abbreviation = "JAC";
         for (Team team : Team.values()) {
             if (team.abbreviation.equalsIgnoreCase(abbreviation)) {
                 return team;
